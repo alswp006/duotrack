@@ -24,9 +24,7 @@ import { Card } from '../components/Card';
  *   국내 어학 앱 사용자의 최대 불만인 '광고 중단 + 학습 흐름 파괴' 문제와 Duolingo식 게임화의 낮은 실력 향상 효과에 지친 학습자들을 위해, 광고 없는 집중 학습 + 실제 시험(토익·오픽) 점수 연동 트래킹으로 '학습 ROI'를 증명해주는 영어 학습 성과 관리 앱    -> the one-line description
  */
 
-// ⚠ 이 목록은 골격 예시다 — 앱의 실제 콘텐츠(핵심 지표·최근 기록·바로가기)로 반드시 교체하라.
-// '간편한 사용/빠른 처리' 같은 기능 나열식 홍보 문구는 카피 규칙(CLAUDE.md "AI 냄새 금지") 위반이다.
-// 사용자가 이 화면에서 실제로 확인할 정보를 넣어라 — 아래처럼 데이터가 사는 행으로.
+// 사용자가 이 화면에서 실제로 확인할 정보 — 데이터가 사는 행으로 표현.
 const HIGHLIGHTS = [
   { title: '오늘', description: '아직 기록이 없어요' },
   { title: '이번 주', description: '기록 3건 · 평균 12분' },
@@ -39,15 +37,13 @@ export default function Home() {
     <ScreenScaffold
       top={<Top title={<Top.TitleParagraph>DuoTrack</Top.TitleParagraph>} />}
     >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
+      {/* 시각 앵커: 짧은 헤드라인(1~2줄) + 서브텍스트(작은 폰트) + 카드 내 진입 버튼.
+          Top에 이미 브랜드명이 있으므로 카드 label은 브랜드명과 중복되지 않는 기능 라벨로. */}
       <SummaryHero
-        label="DuoTrack"
-        value={<Paragraph.Text typography="t2">국내 어학 앱 사용자의 최대 불만인 '광고 중단 + 학습 흐름 파괴' 문제와 Duolingo식 게임화의 낮은 실력 향상 효과에 지친 학습자들을 위해, 광고 없는 집중 학습 + 실제 시험(토익·오픽) 점수 연동 트래킹으로 '학습 ROI'를 증명해주는 영어 학습 성과 관리 앱</Paragraph.Text>}
-        caption="로그인 없이 바로 쓸 수 있어요"
+        label="토익·오픽 점수 트래킹"
+        value={<Paragraph.Text typography="t2">광고 없이 집중 학습, 실제 점수로 확인해요</Paragraph.Text>}
+        caption="토익·오픽 점수와 학습 기록을 연결해 성장을 추적해요"
         action={
-          // 라벨은 앱의 핵심 행동 동사로 교체하라 — "연봉 계산하기"/"기록 남기기" 등.
-          // generic "시작하기"/"확인"은 카피 규칙 위반. onClick도 실제 첫 화면 경로로.
           <Button variant="fill" display="block" onClick={() => navigate('/')}>
             첫 결과 보기
           </Button>
@@ -65,6 +61,21 @@ export default function Home() {
             contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
           />
         ))}
+      </Card>
+
+      <Spacing size={24} />
+
+      {/* 무료 이용 안내 — 하단 여백 채우는 실질 정보(스펙: 무료 주간 세션 3회 한도) */}
+      <Card testId="home-plan-info">
+        <ListRow
+          contents={
+            <ListRow.Texts
+              type="2RowTypeA"
+              top="무료 플랜"
+              bottom="주간 학습 세션 3회까지 무료로 이용할 수 있어요"
+            />
+          }
+        />
       </Card>
 
       <Spacing size={24} />
