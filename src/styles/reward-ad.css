@@ -8,7 +8,7 @@
 
 .reward-ad-description {
   font-size: 15px;
-  color: var(--tds-color-grey500, #6B7684);
+  color: var(--tds-color-grey500);
   text-align: center;
 }
 
@@ -16,8 +16,8 @@
   width: 100%;
   max-width: 320px;
   padding: 14px 20px;
-  background-color: var(--tds-color-blue500, #3182F6);
-  color: #fff;
+  background-color: var(--tds-color-blue500);
+  color: var(--tds-color-white);
   border: none;
   border-radius: 12px;
   font-size: 16px;
@@ -26,6 +26,6 @@
 }
 
 .reward-ad-button--loading {
-  background-color: var(--tds-color-grey300, #B0C4DE);
+  background-color: var(--tds-color-grey300);
   cursor: default;
 }

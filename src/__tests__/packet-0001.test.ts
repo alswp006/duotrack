@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as types from "@/lib/types";
 
 /**
  * Packet 0001: TypeScript 타입 + RouteState 정의
@@ -10,7 +11,7 @@ import { describe, it, expect } from "vitest";
 describe("AC-1: src/lib/types.ts exports all entity/API/result types with tsc passing", () => {
   it("should export GoalConfig interface with required fields", () => {
     // Import will fail if type doesn't exist
-    const { GoalConfig } = require("@/lib/types");
+    const { GoalConfig } = types;
     expect(GoalConfig).toBeDefined();
 
     // Type-level check: create an instance that satisfies the interface
@@ -249,7 +250,7 @@ describe("AC-2: RouteState type includes all 6 route paths with correct state sh
 
 describe("AC-3: Export OPIC_GRADE_ORDINAL constant and SaveResult type", () => {
   it("should export OPIC_GRADE_ORDINAL with correct grade-to-ordinal mapping", () => {
-    const { OPIC_GRADE_ORDINAL } = require("@/lib/types");
+    const { OPIC_GRADE_ORDINAL } = types;
 
     expect(OPIC_GRADE_ORDINAL).toBeDefined();
     expect(OPIC_GRADE_ORDINAL.NL).toBe(1);
@@ -264,7 +265,7 @@ describe("AC-3: Export OPIC_GRADE_ORDINAL constant and SaveResult type", () => {
   });
 
   it("should have OPIC_GRADE_ORDINAL with 9 total grades", () => {
-    const { OPIC_GRADE_ORDINAL } = require("@/lib/types");
+    const { OPIC_GRADE_ORDINAL } = types;
     const grades = Object.keys(OPIC_GRADE_ORDINAL);
     expect(grades.length).toBe(9);
   });

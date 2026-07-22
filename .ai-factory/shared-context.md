@@ -1,3 +1,8 @@
+# Shared Context (auto-generated — do NOT modify)
+
+
+## Shared Types Contract (IMPORT these, do NOT redefine)
+```typescript
 // Domain types — DuoTrack (TOEIC/OPIC/TEPS 학습 트래커)
 
 // ── Literal unions ──────────────────────────────────────────────
@@ -7,9 +12,6 @@ export type SubscriptionTier = "free" | "premium";
 export type ResultSource = "ai" | "manual";
 
 // ── Singleton entities ──────────────────────────────────────────
-// Runtime marker for GoalConfig type (for test introspection)
-export const GoalConfig = Symbol('GoalConfig');
-
 export interface GoalConfig {
   id: "goal";
   examType: ExamType;
@@ -123,34 +125,61 @@ export interface DiagnoseResponse {
 
 export interface GenerateProblemSetRequest {
   examType: ExamType;
-  part: string;
-}
+  part: s
+// ...truncated
+```
 
-export interface GenerateProblemSetResponse {
-  problems: Problem[];
-}
+## Existing Codebase (import and use these — do NOT recreate)
+### File Tree (src/)
+  App.tsx
+  components/
+    AdSlot.tsx
+    Amount.tsx
+    BottomCTA.tsx
+    Card.tsx
+    CountUp.tsx
+    FloatingTabBar.tsx
+    MiniBar.tsx
+    PageShell.tsx
+    ScreenScaffold.tsx
+    Sparkline.tsx
+    StateView.tsx
+    SummaryHero.tsx
+    TossPurchase.tsx
+    TossRewardAd.tsx
+  hooks/
+  lib/
+    storage.ts
+    types.ts
+    utils.ts
+  main.tsx
+  pages/
+    Home.tsx
+    __TdsGallery.tsx
+  styles/
+    globals.css
+    reward-ad.css
+  types/
+  vite-env.d.ts
 
-export type ApiErrorCode = 400 | 401 | 404 | 429 | 500;
+### Exports (src/lib/)
+- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
+- types.ts: export type ExamType = "TOEIC" | "OPIC" | "TEPS"; export type ExamKind = "mock" | "real"; export type SubscriptionTier = "free" | "premium"; export type ResultSource = "ai" | "manual"; export interface GoalConfig; export interface SubscriptionState; export interface AppFlags; export interface Diagnosis
+- utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
-export interface ApiErrorResponse {
-  error: string;
-  statusCode: ApiErrorCode;
-}
-
-// ── Save result ──────────────────────────────────────────────────
-export type SaveResult = { ok: true } | { ok: false; reason: "quota" | "invalid" };
-
-// ── OPIC grade ordinal mapping ───────────────────────────────────
-export type OpicGrade = "NL" | "NM" | "NH" | "IL" | "IM1" | "IM2" | "IM3" | "IH" | "AL";
-
-export const OPIC_GRADE_ORDINAL: Record<OpicGrade, number> = {
-  NL: 1,
-  NM: 2,
-  NH: 3,
-  IL: 4,
-  IM1: 5,
-  IM2: 6,
-  IM3: 7,
-  IH: 8,
-  AL: 9,
-};
+### Components (src/components/)
+- AdSlot.tsx: AdSlot
+- Amount.tsx: Amount
+- BottomCTA.tsx: SubmitFooter, ButtonStack
+- Card.tsx: Card
+- CountUp.tsx: CountUp
+- FloatingTabBar.tsx: FloatingTabBar
+- MiniBar.tsx: MiniBar
+- PageShell.tsx: PageShell
+- ScreenScaffold.tsx: ScreenScaffold
+- Sparkline.tsx: Sparkline
+- StateView.tsx: EmptyState, LoadingState
+- SummaryHero.tsx: SummaryHero
+- TossPurchase.tsx: TossPurchase
+- TossRewardAd.tsx: TossRewardAd
+CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.

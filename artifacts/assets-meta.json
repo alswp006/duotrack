@@ -1,0 +1,9 @@
+{
+  "logo": {
+    "source": "generated",
+    "fallbackReason": null
+  },
+  "banner": {
+    "source": "template"
+  }
+}
