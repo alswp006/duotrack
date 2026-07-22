@@ -1,0 +1,722 @@
+[
+  {
+    "id": "0001",
+    "title": "TypeScript 타입 + RouteState 정의",
+    "epic": "Epic 1. Data Layer",
+    "task": {
+      "description": "6개 다건 엔티티(Diagnosis, StudySession, ExamRecord, GeneratedProblemSet+Problem)와 3개 싱글턴(GoalConfig, SubscriptionState, AppFlags) 인터페이스, 리터럴 유니온(examType/tier/kind), API 요청/응답 타입, 저장 결과 타입, API 에러 코드 유니온, OPIC 등급-서수 매핑 상수, RouteState 타입을 정의한다. 런타임 로직 없이 순수 타입+const만 작성한다.",
+      "acceptance_criteria": [
+        "src/lib/types.ts가 전 엔티티/API/결과 타입을 export하고 tsc 무오류 통과",
+        "RouteState가 '/diagnosis/result':{diagnosisId:string}, '/session':{partFocus?:string}|undefined, '/exam/new':{kind?:'mock'|'real'}|undefined, '/exam/detail':{examId:string}, '/weak':{part?:string}|undefined, '/paywall':{from?:string}|undefined 포함",
+        "OPIC_GRADE_ORDINAL(NL=1…AL=9)와 저장 결과 타입 {ok:true}|{ok:false,reason:'quota'|'invalid'} export"
+      ]
+    },
+    "covers": [],
+    "files": [
+      "src/lib/types.ts"
+    ],
+    "definition_of_done": [
+      "tsc 무오류 통과",
+      "전 엔티티/API/결과/RouteState 타입 export 확인",
+      "OPIC_GRADE_ORDINAL 상수 export"
+    ],
+    "depends_on": [],
+    "db_schema": "interface GoalConfig{id:'goal';examType:'TOEIC'|'OPIC'|'TEPS';targetScore:number;currentScore:number|null;deadline:string;createdAt:string;updatedAt:string} + Diagnosis/StudySession/ExamRecord/GeneratedProblemSet/Problem/SubscriptionState/AppFlags → localStorage keys: duotrack:goal|diagnosis|sessions|exams|problems|subscription|flags",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0002",
+    "title": "localStorage CRUD 헬퍼",
+    "epic": "Epic 1. Data Layer",
+    "task": {
+      "description": "duotrack: 접두어 key 전용 타입 안전 getter/setter 구현. getter는 파싱 실패 시 기본값(goal=null, sessions=[], 기본 싱글턴) 반환. 배열 저장은 상한(sessions 200/exams 100/problems 20) 초과 시 최오래된 항목 제거. setItem QuotaExceededError는 {ok:false,reason:'quota'}로 롤백(크래시·console.error 없음). 스키마 위반 시 {ok:false,reason:'invalid'}.",
+      "acceptance_criteria": [
+        "duotrack:goal='\"{invalid\"' 저장 후 getGoal()===null(예외 없음)",
+        "200건 상태 세션 저장 시 길이 200 유지·최오래된 startedAt 삭제",
+        "setItem throw 목킹 시 세션 저장 {ok:false,reason:'quota'} 반환·console.error 0회, saveGoal 범위밖 → {ok:false,reason:'invalid'} 미저장"
+      ]
+    },
+    "covers": [
+      "F1-AC-1",
+      "F1-AC-2",
+      "F1-AC-4",
+      "F1-AC-5",
+      "F1-AC-6"
+    ],
+    "files": [
+      "src/lib/storage.ts"
+    ],
+    "definition_of_done": [
+      "빈 스토어에서 기본값 sessions=[]·goal=null 반환",
+      "상한 트림 동작 확인",
+      "quota/invalid 결과 판별 유니온 반환·console.error 0회"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "localStorage keys: duotrack:goal→GoalConfig|null, duotrack:sessions→StudySession[], duotrack:exams→ExamRecord[], duotrack:problems→GeneratedProblemSet[], duotrack:diagnosis→Diagnosis|null",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0003",
+    "title": "구독 상태 로직 (주간 리셋·증가·cascade)",
+    "epic": "Epic 1. Data Layer",
+    "task": {
+      "description": "getSubscription()은 읽기 시 weekStartAt이 현재 주(월요일 기준)와 다르면 sessionsThisWeek=0 리셋+weekStartAt 갱신 후 반환. incrementSessionsThisWeek()는 리셋 선적용 후 +1 순수 증가. saveSubscription() 제공. saveGoal()에 examType 변경 감지 hook 추가: 이전과 다르면 duotrack:diagnosis null 제거+currentScore=null 초기화, exams/sessions/problems 보존, 원자적 저장.",
+      "acceptance_criteria": [
+        "weekStartAt='2026-07-13'·오늘 2026-07-23 → getSubscription() sessionsThisWeek=0·weekStartAt='2026-07-20'",
+        "sessionsThisWeek=2 같은 주 → incrementSessionsThisWeek() 반환 3·updatedAt 갱신",
+        "examType 변경 saveGoal → getDiagnosis()===null·currentScore===null·getExams().length 불변"
+      ]
+    },
+    "covers": [
+      "F1-AC-3",
+      "F1-AC-7",
+      "F1-AC-8"
+    ],
+    "files": [
+      "src/lib/subscription.ts",
+      "src/lib/storage.ts"
+    ],
+    "definition_of_done": [
+      "빈 스토어 getSubscription() tier:'free'·sessionsThisWeek:0 기본값",
+      "주간 리셋·증가 함수 동작 확인",
+      "examType cascade 무효화 원자적 적용"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "interface SubscriptionState{id:'subscription';tier:'free'|'premium';activatedAt:string|null;weekStartAt:string;sessionsThisWeek:number;reportUnlockedUntil:string|null;updatedAt:string} → localStorage key: duotrack:subscription",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0004",
+    "title": "AI diagnose fetch 클라이언트 + 상태코드 정규화",
+    "epic": "Epic 2. AI API Client",
+    "task": {
+      "description": "VITE_AI_API_BASE 기반 postDiagnose(req) 구현. 성공 시 {ok:true,data}, 실패 시 절대 throw 없이 {ok:false,code}(code∈'400'|'401'|'404'|'429'|'500') 반환. 네트워크 오류(무응답) 및 미정의 상태코드(예:503)는 '500' 폴백. 토스 세션 컨텍스트 헤더 부착. 전 에러 경로 try/catch 흡수로 console.error 미호출.",
+      "acceptance_criteria": [
+        "200 응답을 DiagnoseResponse로 파싱·반환",
+        "목킹된 400/401/404/429/500 응답에 대응 code 반환",
+        "fetch reject(네트워크)·503 응답 모두 code:'500', 전 경로 console.error 0회, CORS 실패도 throw 없이 '500'"
+      ]
+    },
+    "covers": [
+      "AC-G3",
+      "AC-G10"
+    ],
+    "files": [
+      "src/lib/api.ts"
+    ],
+    "definition_of_done": [
+      "postDiagnose가 판별 유니온 {ok,code|data} 반환",
+      "미정의 코드 500 폴백",
+      "전 에러 경로 throw/console.error 0회"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "",
+    "api_contract": "POST /diagnose {examType, answers:number[10]} → 200 {estimatedScore, partScores:Record<string,number>, weakParts:string[]} | errors 400/401/404/429/500(+미정의→500)",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0005",
+    "title": "AI generate-problems 클라이언트 + 에러 메시지 매퍼",
+    "epic": "Epic 2. AI API Client",
+    "task": {
+      "description": "postGenerateProblems(req)를 api.ts에 추가하여 성공 시 {ok:true,data}(GenerateProblemsResponse), 실패 시 {ok:false,code} 반환(네트워크·미정의 코드→'500' 폴백, throw/console.error 없음). 별도 apiErrors.ts에 code→Toast 문구 매핑 헬퍼(500/네트워크·401·404·400·429 각 지정 문구) 구현하여 F2/F5 페이지가 switch 없이 공용 매핑만 사용하도록 한다.",
+      "acceptance_criteria": [
+        "200 응답을 GenerateProblemsResponse(5문항)로 파싱·반환",
+        "목킹 400/401/404/429/500 대응 code 반환, 네트워크·503 → '500'",
+        "mapApiErrorToMessage('429')='요청이 많아요. 잠시 후 다시 시도해주세요' 등 5개 code 지정 문구 반환"
+      ]
+    },
+    "covers": [
+      "AC-G3",
+      "AC-G10"
+    ],
+    "files": [
+      "src/lib/api.ts",
+      "src/lib/apiErrors.ts"
+    ],
+    "definition_of_done": [
+      "postGenerateProblems 판별 유니온 반환",
+      "apiErrors 매퍼 5개 code 문구 확인",
+      "전 에러 경로 console.error 0회"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "POST /generate-problems {examType, part} → 200 {problems:Problem[5]} | errors 400/401/404/429/500(+미정의→500)",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0006",
+    "title": "Onboarding 페이지 (/onboarding, S1)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "examType(Tab), targetScore·deadline(TextField, inputMode='numeric') 폼 + SubmitFooter '목표 저장하기'. 제출 시 examType별 점수 범위·deadline>2026-07-23 검증 후 saveGoal, AppFlags.onboarded=true 저장, Toast '목표가 저장되었어요', navigate('/diagnosis'). 골격은 ScreenScaffold, 여백은 Spacing 컴포넌트만 사용.",
+      "acceptance_criteria": [
+        "{examType:'TOEIC',targetScore:800,deadline:'2026-11-30'} 제출 → duotrack:goal id:'goal'·타임스탬프 저장·onboarded=true·/diagnosis 이동·Toast",
+        "TOEIC targetScore=1200 → 미저장·TextField 하단 '10~990 사이 점수를 입력해주세요'",
+        "골격 ScreenScaffold+SubmitFooter(display block)·인터랙티브 요소 44px 이상"
+      ]
+    },
+    "covers": [
+      "F2-AC-1",
+      "F2-AC-6"
+    ],
+    "files": [
+      "src/pages/Onboarding.tsx"
+    ],
+    "definition_of_done": [
+      "정상 제출 시 저장+라우팅+Toast",
+      "범위 밖 입력 에러 표시·미저장",
+      "44px 터치 타깃·TDS 컴포넌트만 사용"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "GoalConfig(id:'goal', examType, targetScore, currentScore:null, deadline, createdAt, updatedAt) + AppFlags.onboarded=true",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA. TDS: Top, Tab, TextField, Spacing, Paragraph, Button(SubmitFooter), Toast. Layout: <Top title='목표 시험을 정해요'/> <Spacing size=16/> <Paragraph.Text typography='t4'>시험 종류</Paragraph.Text> <Tab onChange={setExamIdx}><Tab.Item>TOEIC</Tab.Item><Tab.Item>OPIC</Tab.Item><Tab.Item>TEPS</Tab.Item></Tab> <Spacing size=16/> <TextField variant='box' label='목표 점수' help='TOEIC·TEPS 10~990, OPIC 1~10등급' hasError={rangeErr}/> <Spacing size=12/> <TextField variant='box' label='목표 시험일'/> <Button variant='fill' size='large' display='block'>목표 저장하기</Button>. States: 저장 중 Button disabled; 범위 밖 hasError+help '10~990 사이 점수를 입력해주세요', 마감일 오늘 이전이면 '오늘 이후 날짜를 골라요'. Interactions: Tab 전환 generateHapticFeedback({type:'tickWeak'}), 저장 type:'success' 햅틱 후 Toast position='top'."
+  },
+  {
+    "id": "0007",
+    "title": "Diagnosis 퀴즈 페이지 (/diagnosis, S2)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "첫 진입 시 aiNoticeAcknowledged=false면 AlertDialog 'AI 활용 안내' 1회(확인 시 flag 저장). 10문항 ListRow(4지선다). 미완료(answers.length!==10) 제출 시 API 미호출+Toast '10문항을 모두 응답해주세요'. 완료 시 postDiagnose 호출→대기 중 버튼 disabled+data-testid='diagnose-loading'. 성공 시 Diagnosis 저장·currentScore 갱신·navigate('/diagnosis/result',{state:{diagnosisId}}). code별 Toast는 apiErrors 매퍼 사용, 전 에러 경로 미저장·머무름·console.error 0회.",
+      "acceptance_criteria": [
+        "첫 진입 AlertDialog 1회·재진입 미노출; 200 응답 시 duotrack:diagnosis 저장+currentScore 갱신+/diagnosis/result 이동",
+        "대기 중 data-testid='diagnose-loading'+버튼 disabled(중복 제출 불가); 7문항 제출 → API 미호출+Toast",
+        "500/네트워크·401·404·400·429 각각 지정 Toast·미저장·머무름, 429 후 버튼 재활성"
+      ]
+    },
+    "covers": [
+      "F2-AC-2",
+      "F2-AC-3",
+      "F2-AC-5",
+      "F2-AC-7",
+      "F2-AC-8",
+      "F2-AC-9",
+      "F2-AC-10",
+      "F2-AC-11",
+      "F2-AC-12"
+    ],
+    "files": [
+      "src/pages/Diagnosis.tsx"
+    ],
+    "definition_of_done": [
+      "AI 고지 1회 게이트",
+      "성공 저장+라우팅, 로딩 disabled",
+      "5개 에러 code 지정 Toast·미저장·console.error 0회"
+    ],
+    "depends_on": [
+      "0003",
+      "0004"
+    ],
+    "db_schema": "Diagnosis(id:UUID, goalId:'goal', examType 스냅샷, estimatedScore, partScores, weakParts, source:'ai', createdAt, updatedAt) → duotrack:diagnosis; GoalConfig.currentScore 갱신",
+    "api_contract": "POST /diagnose {examType, answers} → {estimatedScore, partScores, weakParts} | 400/401/404/429/500",
+    "dependencies": [],
+    "ui_requirements": "Pattern: OverlayPulse(호출 중)+StatusPanel. TDS: Top, Paragraph, Spacing, Button, ListRow, AlertDialog, Toast. AlertDialog title='AI 활용 안내' description='실력 진단과 문제 생성은 생성형 AI가 만들어요. 결과는 참고용이에요.' 확인 버튼→ackAiNotice. 10문항 ListRow 4지선다. Loading: 중앙 인디케이터+'AI가 분석하고 있어요', data-testid='diagnose-loading', 버튼 disabled. Error Toast(apiErrors): 400→'요청을 처리할 수 없어요. 다시 시도해주세요', 429→'요청이 많아요. 잠시 후 다시 시도해주세요', 401→'세션이 만료되었어요. 앱을 다시 실행해주세요', 404→'현재 지원하지 않는 시험이에요', 500/네트워크→'진단에 실패했어요. 다시 시도해주세요'. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0008",
+    "title": "Diagnosis Result 페이지 (/diagnosis/result, S3)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "location.state.diagnosisId(RouteState 캐스팅) 또는 fallback으로 getDiagnosis() 최신값 사용. 상단 Chip 'AI가 생성한 결과입니다'(data-testid='ai-label'), SummaryHero(예상 점수 CountUp), 파트별 점수 바, SubmitFooter '학습 시작하기'→navigate('/session'). diagnosis 없으면 '진단 결과가 없어요'+진단 이동 버튼.",
+      "acceptance_criteria": [
+        "결과 카드 상단에 data-testid='ai-label' Chip 렌더",
+        "state 없어도 최신 diagnosis fallback으로 정상 표시",
+        "'학습 시작하기' → /session 이동"
+      ]
+    },
+    "covers": [
+      "F2-AC-4"
+    ],
+    "files": [
+      "src/pages/DiagnosisResult.tsx"
+    ],
+    "definition_of_done": [
+      "ai-label Chip 렌더",
+      "fallback getDiagnosis 동작",
+      "빈 상태 안내+진단 이동"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "read duotrack:diagnosis → Diagnosis",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: StatusPanel(Hero). TDS: Top, Chip, SummaryHero, Amount, Paragraph, ListRow, Spacing, Button(SubmitFooter). Pattern G AI 배지: <Chip data-testid='ai-label'>AI가 생성한 결과입니다</Chip>. <SummaryHero label='예상 점수' value={<Amount value={est} unit='점' typography='t1'/>} caption='파트별 취약점을 아래에서 확인해요'/>. 파트별 점수 MiniBar/ListRow(top=파트키, bottom='N점'). <Button variant='fill' size='large' display='block'>학습 시작하기</Button>. Empty: diagnosis 없으면 EmptyState '진단 결과가 없어요'+진단 이동 Button. 색상 var(--tds-color-*)만."
+  },
+  {
+    "id": "0009",
+    "title": "Study Session 타이머·기록 (/session, S4 일부)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "25분 카운트다운 Card(data-testid='timer', mm:ss 1초 갱신). '세션 시작'/'그만하기'(display block). 완주 시 StudySession{completed:true,elapsedSec:1500,...} 저장+incrementSessionsThisWeek()+Toast '25분 집중 완료! 🎉'→navigate('/'). '그만하기'→AlertDialog '확인' 시 {completed:false,elapsedSec:경과} 저장+increment→홈. AdSlot/TossRewardAd/전면 광고 절대 미렌더.",
+      "acceptance_criteria": [
+        "시작 3초 후 data-testid='timer'='24:57'",
+        "완주 시 완료 세션 저장+sessionsThisWeek +1+Toast+홈 이동; 12분 경과 중단 시 completed:false·elapsedSec:720 저장+increment+홈",
+        "/session 마운트 DOM에 [data-testid^='ad-'] 요소 0개"
+      ]
+    },
+    "covers": [
+      "F3-AC-1",
+      "F3-AC-2",
+      "F3-AC-3",
+      "F3-AC-5"
+    ],
+    "files": [
+      "src/pages/StudySession.tsx"
+    ],
+    "definition_of_done": [
+      "타이머 1초 정확 갱신",
+      "완주/중단 모두 세션 저장+increment 1회",
+      "광고 요소 0개(핵심 가치)"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "StudySession(id:UUID, goalId:'goal', diagnosisId|null, startedAt, endedAt, durationMin:25, elapsedSec, partFocus, examType 스냅샷, completed, createdAt, updatedAt) → duotrack:sessions",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 집중 학습 세션. TDS: Top, Card, Paragraph, Spacing, Button, AlertDialog, Toast. 카운트다운 Card data-testid='timer' mm:ss. <Button display='block'>세션 시작/그만하기</Button>. 그만하기 → AlertDialog(닫기/확인). 완주 Toast '25분 집중 완료! 🎉' position='top', CTA에 generateHapticFeedback({type:'success'}). 광고 정책: AdSlot·TossRewardAd·전면 광고 절대 미렌더. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0010",
+    "title": "Study Session 게이트·빈 상태 (/session, S4 나머지)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "진입 시 getSubscription()(리셋 반영). 무료·sessionsThisWeek===3면 세션 미시작+increment 미호출+BottomSheet '이번 주 무료 세션 3회를 모두 사용했어요'+'프리미엄 보기'→/paywall. premium은 카운트 무관 정상 시작. 진행 세션 없을 때 추천 파트(diagnosis.weakParts[0], 없으면 'RC') 표시, 진단 미완료 시 '먼저 실력 진단을 해보세요'+진단 이동. 세션 저장이 {ok:false,reason:'quota'}면 Toast '저장 공간이 부족해요. 오래된 기록을 정리해주세요'+increment 미호출.",
+      "acceptance_criteria": [
+        "무료 sessionsThisWeek===3 → 시작 차단+BottomSheet·increment 미호출",
+        "premium sessionsThisWeek===5 → 정상 시작·BottomSheet 미표시",
+        "진단 없음 → 추천 파트 'RC'+진단 이동 안내; 저장 quota 실패 시 Toast+카운트 불변"
+      ]
+    },
+    "covers": [
+      "F3-AC-4",
+      "F3-AC-6",
+      "F3-AC-7"
+    ],
+    "files": [
+      "src/pages/StudySession.tsx"
+    ],
+    "definition_of_done": [
+      "무료 한도 3회 게이트+increment 미호출",
+      "premium 무제한 시작",
+      "quota 실패 Toast+카운트 불변"
+    ],
+    "depends_on": [
+      "0009"
+    ],
+    "db_schema": "read duotrack:subscription, duotrack:diagnosis; write duotrack:sessions(quota 방어)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "TDS: BottomSheet, Button, Paragraph, Spacing, Toast, EmptyState. 무료 한도 도달 BottomSheet title='이번 주 무료 세션 3회를 모두 사용했어요' 하단 Button '프리미엄 보기'→navigate('/paywall',{state:{from:'session'}}) + '닫기'. 진단 미완료 EmptyState '먼저 실력 진단을 해보세요'+진단 이동 Button. quota 실패 Toast '저장 공간이 부족해요. 오래된 기록을 정리해주세요'. 색상 var(--tds-color-*)만."
+  },
+  {
+    "id": "0011",
+    "title": "Exam List 페이지 (/exam, S5)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "getExams()에서 현재 GoalConfig.examType과 일치하는 레코드만 '현재' 뷰에 표시, 불일치 레코드는 '이전 시험 기록' 필터에서만 노출(스냅샷 examType 비교). 50건+는 가상 스크롤/노드 상한으로 DOM ≤20 유지. 빈 상태 일러스트+'점수 기록하기' 버튼→navigate('/exam/new'). 각 항목 탭 시 navigate('/exam/detail',{state:{examId}}).",
+      "acceptance_criteria": [
+        "현재 examType 일치 레코드 0건 시 빈 상태 일러스트+버튼",
+        "21건 렌더 시 DOM 노드 ≤20 유지",
+        "'현재' 뷰에서 examType 불일치 레코드 제외·'이전 시험 기록' 필터에서만 표시"
+      ]
+    },
+    "covers": [
+      "F4-AC-1",
+      "F4-AC-3",
+      "F4-AC-5"
+    ],
+    "files": [
+      "src/pages/ExamList.tsx"
+    ],
+    "definition_of_done": [
+      "examType 스냅샷 필터 정확",
+      "가상 스크롤/노드 상한 ≤20",
+      "빈 상태 CTA→/exam/new"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "read duotrack:exams → ExamRecord[], read duotrack:goal.examType",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 시험 기록 목록. TDS: Top, Tab, ListRow, Chip, Spacing, Button, Asset.ContentIcon. 상단 Tab '현재'/'이전 시험 기록'. ListRow.Texts type='2RowTypeA' top='TOEIC 720점' bottom=takenAt, right Chip kind('mock'/'real'). 빈 상태 Asset.ContentIcon+text '아직 기록이 없어요'+Button '점수 기록하기'. 50건+ 가상 스크롤. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0012",
+    "title": "Exam New 페이지 (/exam/new, S6)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "kind(mock/real) Tab, score·takenAt·partScores 입력 폼 + SubmitFooter. examType별 점수 범위·takenAt<=2026-07-23 검증 후 ExamRecord 저장(predictedScore=최신 diagnosis 예측)·Toast·navigate('/exam'). 무료 사용자가 mock 탭 선택 시 BottomSheet+Paywall 버튼(폼 미표시). location.state.kind로 기본 탭 설정.",
+      "acceptance_criteria": [
+        "{kind:'real',score:720,takenAt:'2026-07-20'} 저장 → 목록 상단 추가+Toast+/exam 이동",
+        "무료+mock 탭 → BottomSheet+Paywall 버튼·폼 미표시",
+        "TOEIC score=1000 → 미저장+'10~990 사이 점수를 입력해주세요'; takenAt='2026-08-01' → 미저장+'오늘 이후 날짜는 선택할 수 없어요'"
+      ]
+    },
+    "covers": [
+      "F4-AC-2",
+      "F4-AC-4",
+      "F4-AC-6",
+      "F4-AC-7"
+    ],
+    "files": [
+      "src/pages/ExamNew.tsx"
+    ],
+    "definition_of_done": [
+      "정상 저장+Toast+라우팅",
+      "무료 mock 게이트",
+      "점수/날짜 검증 에러 미저장"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "ExamRecord(id:UUID, goalId:'goal', predictedFromDiagnosisId|null, kind, examType 스냅샷, score, partScores, takenAt, predictedScore|null, createdAt, updatedAt) → duotrack:exams",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 시험 점수 입력 FixedBottomCTA. TDS: Top, Tab, TextField, Spacing, Paragraph, Button(SubmitFooter), BottomSheet, Toast. Tab mock/real. TextField inputMode='numeric' 점수, 날짜 입력, hasError+help. 무료 mock BottomSheet '프리미엄에서 이용할 수 있어요'+'프리미엄 보기'→/paywall. Error: 'TOEIC·TEPS 10~990', '오늘 이후 날짜는 선택할 수 없어요'. 저장 success 햅틱+Toast '점수를 기록했어요'. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0013",
+    "title": "Exam Detail 페이지 (/exam/detail, S7)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "location.state.examId(RouteState 캐스팅)로 ExamRecord 조회, 없으면 navigate('/exam') 리다이렉트. 예측 정확도=100-|예측-실제|/실제*100 계산(data-testid='pred-accuracy'). 참조 diagnosis 삭제/부재 시 '예측 데이터 없음' 표시하고 NaN/0 나눗셈 방지. 파트별 점수 카드 표시.",
+      "acceptance_criteria": [
+        "est=640·score=720 → pred-accuracy='92%'",
+        "참조 diagnosis 삭제/부재 시 '예측 데이터 없음' 표시·NaN 미발생·console.error 0회",
+        "state 없이 진입 시 /exam 리다이렉트"
+      ]
+    },
+    "covers": [
+      "F4-AC-8",
+      "F4-AC-9",
+      "F4-AC-10"
+    ],
+    "files": [
+      "src/pages/ExamDetail.tsx"
+    ],
+    "definition_of_done": [
+      "예측 정확도 계산 정확",
+      "dangling FK 방어·NaN 미발생",
+      "state 없음 리다이렉트"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "read duotrack:exams(examId), read duotrack:diagnosis",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "TDS: Top, SummaryHero, Amount, ListRow, Paragraph, Spacing, Card. SummaryHero label='예측 정확도' value data-testid='pred-accuracy'. 파트별 점수 ListRow. 예측 데이터 없으면 Paragraph '예측 데이터 없음'. 색상 var(--tds-color-*)만, 골격 ScreenScaffold."
+  },
+  {
+    "id": "0014",
+    "title": "Weak Parts 생성 플로우 (/weak, S8 일부)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "diagnosis.partScores 하위 파트 강조(weakParts[0] 기본, location.state.part 우선). diagnosis null이면 빈 상태+진단 이동. 무료면 BottomSheet+Paywall 버튼. 프리미엄 '문제 만들기'→postGenerateProblems 호출(로딩 중 data-testid='gen-loading'+버튼 disabled). 200 응답 시 duotrack:problems 저장+풀이 화면(정답 선택 시 정오답+해설). 결과 상단 Chip 'AI가 생성한 결과입니다'(data-testid='ai-label').",
+      "acceptance_criteria": [
+        "partScores={LC:70,RC:48} → 'RC' 강조+기본 파트 'RC'; 생성 세트 화면에 data-testid='ai-label' Chip",
+        "diagnosis null → 빈 상태 안내+진단 이동; 무료 → BottomSheet+Paywall",
+        "프리미엄 200 응답 → duotrack:problems 저장+풀이 화면, 로딩 중 gen-loading+버튼 disabled; 정답 선택 시 정오답+해설 표시"
+      ]
+    },
+    "covers": [
+      "F5-AC-1",
+      "F5-AC-2",
+      "F5-AC-3",
+      "F5-AC-4",
+      "F5-AC-6",
+      "F5-AC-7"
+    ],
+    "files": [
+      "src/pages/WeakParts.tsx"
+    ],
+    "definition_of_done": [
+      "취약 파트 감지+ai-label Chip",
+      "무료 게이트/진단 빈 상태",
+      "성공 저장+풀이+해설, 로딩 disabled"
+    ],
+    "depends_on": [
+      "0003",
+      "0005"
+    ],
+    "db_schema": "GeneratedProblemSet(id:UUID, goalId:'goal', diagnosisId|null, part, examType 스냅샷, problems:Problem[5], source:'ai', createdAt, updatedAt) → duotrack:problems",
+    "api_contract": "POST /generate-problems {examType, part} → {problems:Problem[5]} | 400/401/404/429/500",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 취약 파트 문제 풀이. TDS: Top, Chip, ListRow, Button, Paragraph, Spacing, BottomSheet, EmptyState. 취약 파트 강조 ListRow top=파트키 bottom='N점 · 취약'. 생성 결과 상단 Chip data-testid='ai-label' 'AI가 생성한 결과입니다'. 4지선다 ListRow, 선택 후 정오답+해설. Loading data-testid='gen-loading' 버튼 disabled. 무료 BottomSheet+Paywall. diagnosis 없으면 EmptyState+진단 이동. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0015",
+    "title": "Weak Parts 에러 처리 (/weak, S8 나머지)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "postGenerateProblems 실패 code별 Toast를 apiErrors 매퍼로 표시: 500/네트워크·401·404·400·429 각각 지정 문구. 전 에러 경로 미저장·/weak 유지·console.error 0회. 429 후 '문제 만들기' 버튼 재활성해 재시도 가능하게 한다.",
+      "acceptance_criteria": [
+        "500/네트워크·401·404·400·429 응답 각각 지정 Toast+미저장",
+        "429 후 '문제 만들기' 버튼 재활성+재시도 가능",
+        "전 에러 경로 console.error 0회"
+      ]
+    },
+    "covers": [
+      "F5-AC-5",
+      "F5-AC-8",
+      "F5-AC-9",
+      "F5-AC-10",
+      "F5-AC-11",
+      "F5-AC-12"
+    ],
+    "files": [
+      "src/pages/WeakParts.tsx"
+    ],
+    "definition_of_done": [
+      "5개 code 지정 Toast·미저장",
+      "429 후 버튼 재활성",
+      "console.error 0회"
+    ],
+    "depends_on": [
+      "0014"
+    ],
+    "db_schema": "",
+    "api_contract": "POST /generate-problems errors 400/401/404/429/500(+미정의→500)",
+    "dependencies": [],
+    "ui_requirements": "TDS: Toast, Button. apiErrors 매퍼 사용: 400→'요청을 처리할 수 없어요. 다시 시도해주세요', 429→'요청이 많아요. 잠시 후 다시 시도해주세요', 401→'세션이 만료되었어요. 앱을 다시 실행해주세요', 404→'현재 지원하지 않는 시험이에요', 500/네트워크→'문제 생성에 실패했어요. 다시 시도해주세요'. 에러 후 '문제 만들기' Button 재활성."
+  },
+  {
+    "id": "0016",
+    "title": "ROI Report 페이지 (/report, S9)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "완료 세션 총 학습시간(분)과 점수 향상(diagnosis→최신 exam)으로 시간당 효율 계산(data-testid='roi-hero', 3개 지표 testid). 완료 0분이면 효율 '—'(0 나눗셈 방지). 데이터 부족 시 빈 상태. 무료+reportUnlockedUntil 만료 시 본문 블러+2버튼(프리미엄/광고보기), TossRewardAd 완료 시 reportUnlockedUntil=24h 저장+본문 표시. 집계 중 스켈레톤.",
+      "acceptance_criteria": [
+        "500분+640→720 → roi-hero 효율 '10점/시간'·3개 testid 요소 존재·ScreenScaffold+Card 위계",
+        "완료 0분 → 효율 '—'·console.error 0회; 데이터 부족 → 빈 상태 안내",
+        "무료 만료 → 블러+2버튼, RewardAd 완료 → reportUnlockedUntil 24h 저장+본문 표시; 집계 중 스켈레톤 후 지표 교체"
+      ]
+    },
+    "covers": [
+      "F6-AC-1",
+      "F6-AC-2",
+      "F6-AC-3",
+      "F6-AC-4",
+      "F6-AC-5"
+    ],
+    "files": [
+      "src/pages/RoiReport.tsx"
+    ],
+    "definition_of_done": [
+      "ROI 효율 계산·3개 testid",
+      "0분/데이터 부족 방어",
+      "무료 RewardAd 언락 24h 저장+블러 해제"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "read duotrack:sessions, duotrack:exams, duotrack:diagnosis; write duotrack:subscription.reportUnlockedUntil",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: 성과 리포트 ROI StatusPanel. TDS: Top, SummaryHero, Amount, Card, Paragraph, Spacing, Button, Skeleton + TossRewardAd(래퍼). roi-hero SummaryHero label='시간당 효율' value Amount '10점/시간'. 3개 지표 Card(총 학습시간/점수 향상/효율) 각 data-testid. Loading: Skeleton 후 지표 교체. Empty: 데이터 부족 안내. 무료 만료: 본문 블러+Button '프리미엄 보기'/'광고 보고 열기'(TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}). 리포트는 학습 흐름 밖이라 광고 허용. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0017",
+    "title": "Home 대시보드 (/, S10)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "SummaryHero(목표까지 gap), 이번 주 학습 ListRow(집중 학습/AI 진단), 목표 진척도(data-testid='goal-progress'=currentScore/targetScore*100%+ProgressBar). 무료 상태 상단 '남은 무료 세션 N회'(3-sessionsThisWeek). 데이터 없음 시 CTA 카드→/diagnosis. 홈 하단에만 AdSlot 1개 배치.",
+      "acceptance_criteria": [
+        "currentScore=640·targetScore=800 → data-testid='goal-progress'=80%+ProgressBar",
+        "무료 상태 상단에 '남은 무료 세션 N회'(N 계산 정확)",
+        "데이터 없음 시 CTA 카드→/diagnosis; 홈 하단 AdSlot 1개·세션/결과 화면 미배치"
+      ]
+    },
+    "covers": [
+      "F7-AC-1",
+      "F7-AC-2",
+      "F7-AC-3",
+      "F7-AC-4"
+    ],
+    "files": [
+      "src/pages/Home.tsx"
+    ],
+    "definition_of_done": [
+      "진척도 계산 정확+ProgressBar",
+      "남은 무료 세션 N회 표시",
+      "AdSlot 홈 하단 1개만"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "read duotrack:goal, duotrack:subscription, duotrack:diagnosis, duotrack:sessions",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: StatusPanel. TDS: SummaryHero, Amount, Paragraph, Spacing, ListRow, Chip, Button, Badge, ProgressBar, AdSlot(래퍼). <SummaryHero label='목표까지' value={<Amount value={gap} unit='점'/>} caption={examType+' · 현재 '+(currentScore??'진단 전')+' → 목표 '+targetScore}/>. ProgressBar data-testid='goal-progress'. 상단 '남은 무료 세션 N회'. ListRow onClick goStudy/goDiagnose type='2RowTypeA'. Empty: EmptyState '목표부터 정해요'+Button→/diagnosis. 하단 <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}/>(홈에만). 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0018",
+    "title": "Paywall 페이지 + IAP 연동 (/paywall, S11)",
+    "epic": "Epic 3. UI Pages",
+    "task": {
+      "description": "프리미엄 혜택 안내 + 템플릿 제공 TossPurchase 컴포넌트로 언락. processProductGrant에서 SubscriptionState.tier='premium'·activatedAt 저장, onPurchased Toast '프리미엄이 활성화됐어요'→navigate(-1). grantPromotionReward 방어 로직(promotionCode 미발급 시 no-op). location.state.from으로 진입 맥락 표시.",
+      "acceptance_criteria": [
+        "TossPurchase 결제 성공 → duotrack:subscription tier='premium'·activatedAt 저장+Toast+뒤로 이동",
+        "프리미엄 상태 재진입 시 '이미 프리미엄이에요' 표시·결제 버튼 숨김",
+        "grantPromotionReward 실패/미발급 시 크래시 없이 no-op"
+      ]
+    },
+    "covers": [
+      "F8-AC-1",
+      "F8-AC-2",
+      "F8-AC-3",
+      "F8-AC-6"
+    ],
+    "files": [
+      "src/pages/Paywall.tsx"
+    ],
+    "definition_of_done": [
+      "IAP 성공 시 tier 업그레이드 저장+Toast",
+      "프리미엄 재진입 게이트",
+      "promotion 방어 no-op"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "SubscriptionState.tier='premium', activatedAt 갱신 → duotrack:subscription",
+    "api_contract": "",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": "Pattern: 설정·구독 FixedBottomCTA. TDS: Top, ListRow, Paragraph, Spacing, Button + TossPurchase(템플릿 래퍼). 혜택 ListRow(광고 없는 학습/무제한 세션/mock 기록/ROI 리포트). 하단 <TossPurchase sku={import.meta.env.VITE_TOSS_IAP_SKU} processProductGrant={grantPremium} onPurchased={()=>{Toast '프리미엄이 활성화됐어요'; navigate(-1)}}/>. 프리미엄 상태면 Paragraph '이미 프리미엄이에요'·버튼 숨김. success 햅틱. 골격 ScreenScaffold, 여백 Spacing만."
+  },
+  {
+    "id": "0019",
+    "title": "App.tsx 라우팅 연결 + FloatingTabBar",
+    "epic": "Epic 4. Integration",
+    "task": {
+      "description": "react-router-dom으로 전 페이지 Route 정의(/onboarding, /diagnosis, /diagnosis/result, /session, /exam, /exam/new, /exam/detail, /weak, /report, /, /paywall). 온보딩 미완료(AppFlags.onboarded=false) 시 /onboarding 리다이렉트. 템플릿 제공 FloatingTabBar(홈/학습/기록/리포트) 마운트. main.tsx는 수정 금지(@AI:ANCHOR).",
+      "acceptance_criteria": [
+        "11개 Route 전부 연결·각 경로 진입 시 해당 페이지 렌더",
+        "onboarded=false 시 /onboarding 리다이렉트, true면 / 진입",
+        "FloatingTabBar 2~5탭 렌더·활성탭 컬러 틴트, main.tsx 미수정"
+      ]
+    },
+    "covers": [
+      "F7-AC-5",
+      "AC-G1"
+    ],
+    "files": [
+      "src/App.tsx"
+    ],
+    "definition_of_done": [
+      "전 Route 연결·컴파일 성공",
+      "온보딩 가드 동작",
+      "FloatingTabBar 마운트·main.tsx 미변경"
+    ],
+    "depends_on": [
+      "0006",
+      "0007",
+      "0008",
+      "0009",
+      "0010",
+      "0011",
+      "0012",
+      "0013",
+      "0014",
+      "0015",
+      "0016",
+      "0017",
+      "0018"
+    ],
+    "db_schema": "read duotrack:flags.onboarded",
+    "api_contract": "",
+    "dependencies": [
+      "react-router-dom"
+    ],
+    "ui_requirements": "react-router-dom BrowserRouter/Routes/Route. FloatingTabBar(템플릿 src/components/FloatingTabBar): 탭 홈(/)·학습(/session)·기록(/exam)·리포트(/report), 활성탭 컬러 틴트. position:fixed 하단 요소 paddingBottom:'calc(Npx + env(safe-area-inset-bottom))'. main.tsx @AI:ANCHOR 수정 금지."
+  },
+  {
+    "id": "0020",
+    "title": "AI 사전 고지 오버레이 + 광고 배치 검증 + 최종 폴리시",
+    "epic": "Epic 4. Integration",
+    "task": {
+      "description": "App 루트에 AI 사전 고지 AlertDialog(aiNoticeAcknowledged=false 시 1회, 확인 시 flag 저장) 마운트. 광고 배치 최종 검증: AdSlot은 홈 하단에만, 세션(/session) 화면엔 어떤 광고도 없음, TossRewardAd는 리포트 언락에만. 다크모드 HEX 하드코딩 제거, 터치 타깃 44px, 토스 보이스톤(해요체·Dialog 왼쪽 '닫기') 최종 점검.",
+      "acceptance_criteria": [
+        "첫 실행 AI 고지 AlertDialog 1회·확인 시 aiNoticeAcknowledged=true·재실행 미노출",
+        "/session DOM에 [data-testid^='ad-'] 0개·홈 하단 AdSlot 1개·리포트 RewardAd만 존재",
+        "전 화면 HEX 하드코딩 0·터치 타깃 44px·Dialog 왼쪽 버튼 '닫기'"
+      ]
+    },
+    "covers": [
+      "AC-G4",
+      "AC-G5",
+      "AC-G6",
+      "AC-G7",
+      "AC-G8",
+      "AC-G9"
+    ],
+    "files": [
+      "src/App.tsx",
+      "src/components/AiNoticeGate.tsx"
+    ],
+    "definition_of_done": [
+      "AI 고지 1회 게이트 동작",
+      "광고 정책 위반 0(세션 광고 없음)",
+      "다크모드/터치/보이스톤 최종 통과"
+    ],
+    "depends_on": [
+      "0019"
+    ],
+    "db_schema": "read/write duotrack:flags.aiNoticeAcknowledged",
+    "api_contract": "",
+    "dependencies": [
+      "@apps-in-toss/web-framework"
+    ],
+    "ui_requirements": "TDS: AlertDialog. <AlertDialog open={!flags.aiNoticeAcknowledged} title='AI 활용 안내' description='실력 진단과 문제 생성은 생성형 AI가 만들어요. 결과는 참고용이에요.' alertButton={<AlertDialog.AlertButton onClick={ackAiNotice}>확인</AlertDialog.AlertButton>} onClose={ackAiNotice}/>. 광고 검증: AdSlot 홈 하단만, /session 광고 0개, TossRewardAd 리포트만. 색상 var(--tds-color-*)만·HEX 금지, 터치 44px, Dialog 왼쪽 '닫기'."
+  },
+  {
+    "id": "0021",
+    "title": "라우팅 와이어링 + Provider 연결 + 통합 폴리시",
+    "epic": "4",
+    "task": {
+      "description": "App.tsx에 모든 페이지(Onboarding.tsx, Diagnosis.tsx, DiagnosisResult.tsx, StudySession.tsx, StudySession.tsx, ExamList.tsx, ExamNew.tsx, ExamDetail.tsx, WeakParts.tsx, WeakParts.tsx, RoiReport.tsx, Home.tsx, Paywall.tsx) Route 연결, main.tsx 수정 금지(@AI:ANCHOR), 광고/결제 연동, 최종 UX 폴리시",
+      "acceptance_criteria": [
+        "App.tsx에 모든 페이지 Route가 정의되어 있다",
+        "모든 navigate() 대상에 Route가 존재한다",
+        "main.tsx의 TDSMobileAITProvider/BrowserRouter가 유지되어 있다",
+        "앱이 '/' 경로에서 정상 렌더링된다"
+      ]
+    },
+    "files": [
+      "src/App.tsx"
+    ],
+    "covers": [],
+    "definition_of_done": [
+      "typecheck pass",
+      "all routes accessible",
+      "no console errors"
+    ],
+    "depends_on": [
+      "0020"
+    ]
+  }
+]
