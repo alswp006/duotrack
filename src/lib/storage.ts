@@ -6,6 +6,8 @@ import type {
   Diagnosis,
   SaveResult,
   ExamType,
+  SubscriptionState,
+  AppFlags,
 } from "@/lib/types";
 
 const LIMITS = {
@@ -64,7 +66,15 @@ export function getGoal(): GoalConfig | null {
 
 export function saveGoal(goal: GoalConfig): SaveResult {
   if (!isValidGoal(goal)) return { ok: false, reason: "invalid" };
-  return setItem("duotrack:goal", goal);
+  const existing = getGoal();
+  const examTypeChanged = existing !== null && existing.examType !== goal.examType;
+  const toSave: GoalConfig = examTypeChanged ? { ...goal, currentScore: null } : goal;
+  const result = setItem("duotrack:goal", toSave);
+  if (result.ok && examTypeChanged) {
+    // examType 변경 시 현재 진단은 무효 — cascade invalidation (Relationships & Cascade)
+    removeItem("duotrack:diagnosis");
+  }
+  return result;
 }
 
 // ── Sessions (max 200, evict oldest by startedAt) ────────────────
@@ -108,4 +118,83 @@ export function getDiagnosis(): Diagnosis | null {
 
 export function saveDiagnosis(diagnosis: Diagnosis): SaveResult {
   return setItem("duotrack:diagnosis", diagnosis);
+}
+
+// ── Subscription (singleton, weekly free-session accounting) ─────
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// 이번 주 월요일(로컬 기준) — 무료 주간 세션 카운트 리셋 기준(Assumptions #4)
+function currentWeekStartISO(): string {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun..6=Sat
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+  return toISODate(monday);
+}
+
+function defaultSubscription(): SubscriptionState {
+  return {
+    id: "subscription",
+    tier: "free",
+    activatedAt: null,
+    weekStartAt: currentWeekStartISO(),
+    sessionsThisWeek: 0,
+    reportUnlockedUntil: null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function saveSubscription(subscription: SubscriptionState): SaveResult {
+  return setItem("duotrack:subscription", subscription);
+}
+
+export function getSubscription(): SubscriptionState {
+  const stored = getItem<SubscriptionState>("duotrack:subscription");
+  const current = stored && typeof stored === "object" ? stored : defaultSubscription();
+  const weekStartAt = currentWeekStartISO();
+  if (current.weekStartAt === weekStartAt) return current;
+
+  const reset: SubscriptionState = {
+    ...current,
+    sessionsThisWeek: 0,
+    weekStartAt,
+    updatedAt: new Date().toISOString(),
+  };
+  saveSubscription(reset);
+  return reset;
+}
+
+export function incrementSessionsThisWeek(): SubscriptionState {
+  const current = getSubscription(); // 증가 전 주간 리셋(AC-3) 우선 적용
+  const updated: SubscriptionState = {
+    ...current,
+    sessionsThisWeek: current.sessionsThisWeek + 1,
+    updatedAt: new Date().toISOString(),
+  };
+  saveSubscription(updated);
+  return updated;
+}
+
+// ── AppFlags (singleton) ───────────────────────────────────────────
+function defaultAppFlags(): AppFlags {
+  return {
+    id: "flags",
+    onboarded: false,
+    aiNoticeAcknowledged: false,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getAppFlags(): AppFlags {
+  const stored = getItem<AppFlags>("duotrack:flags");
+  return stored && typeof stored === "object" ? stored : defaultAppFlags();
+}
+
+export function saveAppFlags(flags: AppFlags): SaveResult {
+  return setItem("duotrack:flags", flags);
 }

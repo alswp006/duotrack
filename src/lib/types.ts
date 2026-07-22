@@ -124,6 +124,7 @@ export interface DiagnoseResponse {
 export interface GenerateProblemSetRequest {
   examType: ExamType;
   part: string;
+  count: number;
 }
 
 export interface GenerateProblemSetResponse {
