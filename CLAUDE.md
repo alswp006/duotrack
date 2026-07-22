@@ -1,332 +1,164 @@
-# CLAUDE.md — Project Rules
+# CLAUDE.md — 앱인토스 미니앱 코딩 규칙
 
 ## MANDATORY: Pre-submission Checklist (run BEFORE finishing)
-Every time you finish writing code, you MUST complete ALL of these steps:
-1. **Save all files** — ensure no unsaved changes
-2. **Run `pnpm typecheck`** — fix ALL TypeScript errors before finishing
-3. **Run `pnpm test`** (if test file exists for this packet) — fix failing tests
-4. **Verify imports** — check that all imports resolve to existing files
-5. **Check for duplicates** — ensure you didn't recreate something that already exists
+1. **Run `npx tsc --noEmit`** — fix ALL TypeScript errors before finishing
+2. **Run `npx vitest run`** (if test file exists) — fix failing tests
+3. **Verify imports** — check that all imports resolve to existing files
+4. **Check for duplicates** — ensure you didn't recreate something that already exists
+5. **main.tsx 수정 금지** — @AI:ANCHOR 파일. TDSMobileAITProvider/BrowserRouter가 이미 설정됨
+6. **App.tsx Route 확인** — navigate()로 이동하는 모든 경로에 Route가 있는지 확인
+7. **RouteState 타입 확인** — navigate state가 types.ts의 RouteState와 일치하는지 확인
+8. **비주얼 골격 확인** — 모든 페이지가 ScreenScaffold/PageShell로 감싸졌는가, 1차 CTA가 SubmitFooter 또는 display="block"인가(좌측 글자폭 금지), 결과/비교는 Card로 묶였는가
+9. **SDK 가드 확인** — 마운트시 SDK 호출(광고 등)·이벤트 핸들러(haptic/clipboard)가 try/catch 가드됐는가(흰 화면 방지)
+10. **레이아웃 테스트 확인** — 핵심 가치 화면(결과/비교/지표/대시보드)에 레이아웃 AC가 있으면, 대응 테스트(카드 개수·전체폭 CTA·골격)가 src/__tests__에 있는가. Card/핵심 요소에 testId를 부여하고 getAllByTestId로 검증. .claude/rules/testing.md "레이아웃 검증" 참조 — 행위만 테스트하면 비주얼이 조용히 무너진다.
+11. **버튼 중첩 확인** — FixedBottomCTA/BottomCTA/CTAButton은 자체가 `<button>`이다 → 안에 `<Button>`을 넣지 마라(button>button 무효 HTML). children에 라벨 직접 또는 SubmitFooter 사용. 입력 필드는 `placeholder`를 반드시 줘라(box/line variant는 빈 칸에서 라벨이 숨음). (ListRow onClick + 내부 버튼은 li>button이라 무효는 아니나 a11y상 right 슬롯 IconButton 권장.)
+12. **비주얼 스모크 (UI)** — `npm run test:visual` 통과 + e2e/__shots__/*.png 를 Read로 직접 열어 자가 리뷰(.claude/rules/visual-review.md). jsdom이 못 보는 흰 화면/버튼 중첩/빈 입력칸/휑함/솔리드 알약 탭을 잡는다. (최초 1회 `npx playwright install chromium`.)
+13. **(데이터/결과 화면만) 표현 풍부함** — 핵심 숫자는 CountUp 히어로(SummaryHero), 추이/비중 데이터가 있으면 Sparkline/MiniBar로 시각화, 빈 상태엔 Asset.ContentIcon. 단순 유틸리티엔 불필요 — 장식을 위한 장식 금지.
 
-If any check fails, fix it BEFORE completing. Do NOT leave known errors for later.
-This is not optional. Finishing with known typecheck or test errors is a failure.
+14. **카피 자가 검사 (탈-AI)** — 아래 "카피 규칙" 위반 문구가 없는지 전 페이지 훑기. 사용자가 "AI가 만든 앱" 티를 느끼는 1순위는 문구다.
 
-## CRITICAL: STANDALONE Next.js app (Pages Router)
+If any check fails, fix it BEFORE completing. Finishing with known errors is a failure.
+
+## 카피 규칙 — AI 냄새 금지 (토스 톤)
+모든 UI 텍스트(제목·본문·버튼·에러·빈 상태·placeholder)에 적용:
+- **금지 표현**: "환영합니다", "~해 보세요!"류 권유 남발, "당신(의)", "멋진/놀라운/완벽한", 번역투("~하는 것을 도와드립니다"), 기능 나열식 소개("이 앱은 ~을 제공합니다")
+- **이모지**: 화면당 최대 1개(빈 상태 Asset 아이콘 제외). 리스트 항목마다 이모지 금지
+- **느낌표**: 화면당 최대 1개
+- **버튼**: 맥락 있는 동사 — "확인"/"제출" 대신 "계산하기"/"기록 저장"/"결과 보기"
+- **에러/안내**: "오류가 발생했습니다" 금지 — 무엇이 왜 안 됐고 뭘 하면 되는지("금액을 입력해 주세요")
+- **예시 데이터**: "홍길동"/"user@example.com"/"Lorem" 금지 — 실제 같은 값("월 320만 원")
+- **톤**: 토스처럼 — 짧게, 능동태, 구체적 숫자. 설명이 두 문장 넘으면 줄여라
+
+## CRITICAL: STANDALONE Vite + React app
 - INDEPENDENT app, NOT monorepo. Only import from node_modules or src/
-- No @ai-factory/*, drizzle-orm, @libsql/client. Check package.json first
-- DB: use better-sqlite3, localStorage, or in-memory for MVP
-- better-sqlite3 is a native module — NEVER change its version in package.json
-- If you add new native modules (sharp, bcrypt, etc.), list them in dependencies so the pipeline can rebuild them
+- No @ai-factory/*, drizzle-orm, @libsql/client, better-sqlite3
+- No Next.js — this is a Vite + React app
+- State: useState, useReducer, or localStorage
 - ALWAYS check existing code before creating new files — avoid duplicates
 
-## CRITICAL: Pages Router Structure
-- Pages go in src/pages/ — one file = one route (e.g., src/pages/projects/[id].tsx)
-- API routes go in src/pages/api/ (e.g., src/pages/api/auth/login.ts)
-- Global layout is src/pages/_app.tsx — UPDATE it, don't recreate
-- Global styles are src/styles/globals.css — imported in _app.tsx
-- NO src/app/ directory — this project uses Pages Router, NOT App Router
-- All components are client-side — NO "use client" directive needed
-- Dynamic route params: `const { id } = useRouter().query` (synchronous, no await)
+## CRITICAL: 배포 설정 (4031 에러 방지)
+- granite.config.ts의 appName은 앱인토스 콘솔에 등록된 앱 이름과 대소문자까지 완벽히 일치해야 함
+- appName을 절대 임의로 변경하지 마라 — 변경 시 배포 실패 (4031 에러)
+- package.json의 name 필드도 동일하게 유지
+- 빌드 결과물은 토스 CDN에 호스팅됨 — 동적 SSR 불가, 정적 빌드(CSR/SSG)만 가능
 
-## CRITICAL: Pages Router Data Fetching
-- Use getServerSideProps for server-side data:
-  ```
-  export async function getServerSideProps(context: GetServerSidePropsContext) {
-    const { id } = context.params as { id: string };
-    const data = await fetchData(id);
-    return { props: { data } };
-  }
-  ```
-- Use getStaticProps + getStaticPaths for static data
-- Client-side fetching: use useEffect + fetch or SWR
-- NEVER use App Router patterns (async components, server actions, use() hook)
+## CRITICAL: vite.config.ts — external 절대 금지
+- `@apps-in-toss/web-framework`를 rollupOptions.external에 추가하지 마라
+- 추가하면 번들 첫 줄에 bare specifier가 남아 브라우저가 JS를 한 줄도 실행 못함 → 흰 화면
+- SDK는 importmap이 아닌 window.ReactNativeWebView 글로벌로 통신하므로 번들에 포함해야 정상 동작
+- rollupOptions는 빈 객체 `{}` 또는 아예 없어야 함
 
-## CRITICAL: Middleware (Edge Runtime)
-- middleware.ts runs in Edge Runtime — it CANNOT import Node.js modules (fs, path, crypto, better-sqlite3, bcryptjs)
-- middleware.ts should ONLY check cookies via request.cookies.get() — NEVER import from lib/auth.ts or lib/db.ts
+## CRITICAL: 토스 검수 통과 필수 규칙
+- 만 19세 이상 유저만 이용 가능 — 미성년자 타겟 콘텐츠/UI 금지
+- 외부 도메인 이탈(Outlink) 금지 — window.location.href, window.open으로 외부 URL 이동 금지
+- 외부 링크 필요 시 토스 SDK의 네비게이션 API 사용
+- 콘솔 에러(console.error) 0개 보장 — 검수 시 콘솔 에러가 있으면 반려
+- CORS 에러 0개 보장 — 외부 API 호출 시 CORS 설정 필수 확인
+- Android 7+, iOS 16+ 호환 — 구버전 전용 API 사용 주의
 
-## CRITICAL: Railway 배포 규칙
-- next.config.mjs에 `output: "standalone"` 필수 (이미 설정됨 — 절대 제거하지 마라)
-- public/ 디렉토리 필수 (빈 폴더라도 유지)
-- 이미지 업로드: uploads/ 디렉토리 사용, /api/uploads/[...path] route로 서빙 (이미 존재)
-- 파일 업로드 API 만들 때: multer 대신 Node.js fs로 직접 저장 (uploads/ 디렉토리에)
-- 업로드 크기 제한: API route에 `export const config = { api: { bodyParser: { sizeLimit: '50mb' } } }` 설정
-- 환경변수: process.env로 접근 (Railway Variables에서 관리)
+## CRITICAL: TDS 컴포넌트 API (최우선 참조)
+- `.ai-factory/tds-reference.txt` — 토스 공식 TDS LLM 문서 (코딩 전 반드시 읽을 것)
+- `.ai-factory/tds-essential.txt` — 실제 .d.ts에서 검증된 핵심 API 요약
+- 이 두 파일이 CLAUDE.md 또는 다른 문서와 충돌하면, 이 두 파일이 우선
+
+## CRITICAL: @apps-in-toss/web-framework SDK API (최우선 참조)
+- `.ai-factory/apps-in-toss-essential.txt` — 실제 설치된 SDK의 .d.ts에서 검증된 API 목록
+- SDK는 **imperative 함수**만 제공 (useTossLogin/useTossAd/useTossPayment 같은 React 훅 없음)
+- React 래퍼(TossRewardAd, AdSlot)가 필요하면 `src/components/`에 직접 구현 (템플릿에 참고 구현 있음)
+
+## CRITICAL: SDK 환각 방지 — "모르면 지어내지 말고 확인하라"
+- tds-essential.txt에 없는 prop/컴포넌트 → tds-reference.txt 확인 → 없으면 존재하지 않음
+- apps-in-toss-essential.txt에 없는 SDK API → 존재하지 않음 (import 에러 발생시킬 것)
+- 존재하지 않는 API를 추측해서 사용하면 즉시 FAIL
+- SDK로 구현 불확실 → imperative API를 래퍼 컴포넌트로 감싸서 사용
+
+## Testing
+- .claude/rules/testing.md에 테스트 규칙 + mock 패턴 있음 (반드시 참조)
+- CRITICAL: TDS 컴포넌트는 jsdom에서 충돌 — testing.md의 mock 패턴 반드시 사용
+- **비주얼(필수)**: e2e/visual-smoke.spec.ts(Playwright)는 jsdom이 못 보는 렌더 버그(흰 화면/버튼 중첩/빈 입력칸/휑함)를 잡는다. UI 작업 후 `npm run test:visual` 실행 + e2e/__shots__ 스크린샷을 .claude/rules/visual-review.md 루브릭으로 자가 리뷰. 최초 1회 `npx playwright install chromium`.
+
+## 파일 구조
+- src/App.tsx: 메인 앱 + React Router 라우팅
+- src/pages/: 페이지 컴포넌트 — 파일명은 PascalCase, "Page" 접미사 금지 (Home.tsx ✅, HomePage.tsx ❌)
+- src/components/: 재사용 컴포넌트 (TDS 래핑)
+- src/hooks/: 커스텀 훅 (선택 — imperative SDK를 감싼 래퍼 등)
+- src/lib/: 유틸리티, 타입, 스토리지 헬퍼
+- src/__tests__/: vitest 테스트
+
+## Routing (React Router)
+```tsx
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
+// 네비게이션: useNavigate() 훅 사용
+// 파라미터: useParams() 훅 사용
+// Link: import { Link } from 'react-router-dom'
+```
+
+## SDK는 imperative API — React 훅 없음 (.claude/rules/toss-mini-app.md 우선)
+- useTossLogin/useTossAd/useTossPayment 같은 훅은 존재하지 않음 → import 시 즉시 FAIL
+- 로그인: 세션 자동. 필요 시 getIsTossLoginIntegratedService()
+- 광고: loadFullScreenAd/showFullScreenAd(리워드·전면), TossAds.attachBanner(배너)
+- 결제: createOneTimePurchaseOrder / createSubscriptionPurchaseOrder
+- 정확한 시그니처는 .ai-factory/apps-in-toss-essential.txt(실제 .d.ts)에서 확인
+- React 래퍼가 필요하면 src/components/에 imperative API를 직접 감싸 구현
+
+## Pre-built UI 컴포넌트 (이미 구현됨 — import해서 쓰고 재구현 금지)
+새 페이지는 raw div로 골격을 짜지 말고 아래를 조립하라(마찰 줄이려 미리 만들어둠):
+- src/components/PageShell.tsx — 페이지 SafeArea 래퍼(100dvh + safe-area + adaptive 배경)
+- src/components/ScreenScaffold.tsx — 골든 골격: PageShell + 헤더(top) + 본문 + 하단 CTA(bottom) 슬롯
+- src/components/BottomCTA.tsx — SubmitFooter(단일 1차 CTA, FixedBottomCTA 기반, 클릭 시 success 햅틱 자동) / ButtonStack(1·2차 CTA)
+- src/components/Card.tsx — 카드 컨테이너(결과/비교/지표는 raw div 말고 Card로 묶어 위계 생성). testId prop으로 레이아웃 테스트.
+- src/components/SummaryHero.tsx — 요약 히어로 카드(핵심 숫자 t1 + 카드 내 진입 버튼 + AI 라벨). 홈/결과 최상단 시각 앵커 — '휑함' 제거의 핵심.
+- src/components/Amount.tsx — 금액/지표 1줄 표시(nowrap + tabular-nums + 단위 분리, 좁은 폭 줄바꿈 방지). 금액·핵심 숫자는 raw Paragraph.Text 대신 Amount.
+- src/components/StateView.tsx — EmptyState(아이콘+설명+보조 weak CTA) / LoadingState(Skeleton n줄). 빈/로딩을 맨텍스트("불러오는 중")로 두지 마라.
+- src/components/FloatingTabBar.tsx — 하단 탭 네비(2~5탭). 'TDS TabBar'는 존재하지 않음 — 직접 만들지 말고 이걸 써라(활성탭=컬러 틴트, 솔리드 알약/fill 버튼 금지).
+- src/components/CountUp.tsx — 카운트업 히어로 숫자(0→값 애니메이션, reduced-motion 자동). 결과/대시보드의 핵심 숫자에 Amount 대신 SummaryHero value로.
+- src/components/MiniBar.tsx — 진행률 바(0..1, 상환률·비중). 카드/행에 정보 밀도 추가.
+- src/components/Sparkline.tsx — 추이 인라인 SVG(상환 곡선 등). D3/차트 라이브러리 금지·번들 제한 → 이걸로(의존성 0).
+- src/components/AdSlot.tsx, TossRewardAd.tsx — 광고(이미 SDK 가드됨)
+골든 조합(폼/결과 화면): ScreenScaffold(top=Top, bottom=SubmitFooter) 안에 본문 + Card/SummaryHero로 핵심정보 묶기.
+골든 조합(탭-루트 홈, 하단 FloatingTabBar 있음): ScreenScaffold(top=Top) + SummaryHero(요약 숫자 + 카드 내 진입 버튼) + 하단 FloatingTabBar. 탭-루트엔 SubmitFooter 금지(탭바와 겹침 — 진입 액션은 카드 안에).
+
+## CRITICAL: 버튼 전체폭 함정 (좌측 글자폭 깨짐 방지)
+- TDS Button 기본 display는 'inline'(글자폭·좌측정렬). 1차/단독 CTA는 반드시 display="block" 또는 SubmitFooter/ButtonStack 사용.
+- 하단 1차 액션은 손수 position:fixed 금지 → SubmitFooter(FixedBottomCTA)로.
+
+## Data Storage (localStorage)
+- src/lib/storage.ts — getItem/setItem/removeItem 헬퍼 (이미 존재)
+- 복잡한 상태: useState + localStorage 동기화
+- 서버가 필요하면 외부 API 서버를 fetch()로 호출
 
 ## Design Documents
-- `.ai-factory/spec.md` — Full SPEC with features, ACs, API contracts, DB schema
+- `.ai-factory/spec.md` — Full SPEC with features, ACs, data models
 - `.ai-factory/prd.md` — Product Requirements Document
 - `.ai-factory/task.md` — Epic/Task breakdown
-- When implementing a packet, ALWAYS read `.ai-factory/spec.md` first to understand the full context.
+- When implementing a packet, ALWAYS read `.ai-factory/spec.md` first.
 - Do NOT modify any files in `.ai-factory/`.
 
 ## Code Context Tags
-- `@AI:ANCHOR` — NEVER modify these lines or functions. They are foundational (auth, DB, UI components).
-- `@AI:WARN` — Modify only if absolutely necessary. Explain changes in commit message.
-- `@AI:NOTE` — Business logic with specific reasoning. Read the comment before changing.
-If you see @AI:ANCHOR on a file or function, do NOT edit it. Create new files/functions instead.
+- `@AI:ANCHOR` — NEVER modify these lines or functions.
+- `@AI:WARN` — Modify only if absolutely necessary.
+- `@AI:NOTE` — Business logic with specific reasoning.
 
 ## Git Context Memory
 - Recent commits contain `## Context (AI-Developer Memory)` sections
-- ALWAYS respect decisions from previous packets (Schema choices, API patterns, naming conventions)
-- If a previous packet chose a specific approach (e.g., junction table for many-to-many), follow the same pattern
-- Do NOT contradict established patterns unless the current packet explicitly requires it
+- ALWAYS respect decisions from previous packets
 
 ## Commands
-- pnpm install --ignore-workspace / build / typecheck / test / dev
-- IMPORTANT: Always use --ignore-workspace with pnpm to avoid monorepo interference
-- Build: npx next build (verify it passes before finishing)
-- Typecheck: npx tsc --noEmit (fix ALL errors before finishing)
-
-## Testing (MUST use test-utils.ts)
-- Write tests in src/__tests__/packet-{id}.test.ts
-- ALWAYS import test helpers: `import { setupTestLifecycle, makeAuthedRequest } from "@/lib/test-utils"`
-- Use vitest: import {describe,it,expect} from "vitest"
-
-### MANDATORY Test Pattern (follow this EXACTLY):
-```typescript
-import { describe, it, expect } from "vitest";
-import { setupTestLifecycle, makeAuthedRequest } from "@/lib/test-utils";
-
-describe("Feature Name", () => {
-  const { getUser, getToken } = setupTestLifecycle(); // auto beforeEach/afterEach
-
-  it("does something", async () => {
-    const user = getUser();  // pre-created test user
-    const token = getToken(); // pre-created session token
-    const req = makeAuthedRequest("http://localhost/api/example", token, {
-      method: "POST",
-      body: JSON.stringify({ data: "test" }),
-    });
-    // ... test logic
-  });
-});
-```
-
-### What test-utils provides (DO NOT reimplement):
-- `setupTestLifecycle()` — auto DB cleanup + test user + session in beforeEach/afterEach
-- `createTestUser()` — unique user with auto-generated email (no UNIQUE constraint issues)
-- `createTestSession(userId)` — valid session token for auth
-- `makeAuthedRequest(url, token)` — Request with session_token cookie
-- `cleanDb()` — deletes all data in correct FK order
-
-### Rules:
-- NEVER write manual DB cleanup (cleanDb handles FK order automatically)
-- NEVER create test users manually (createTestUser handles unique emails)
-- NEVER set cookies manually (makeAuthedRequest handles it)
-- better-sqlite3: All DB calls are SYNCHRONOUS — use db.prepare().run(), NOT await
-- Run pnpm test + pnpm typecheck before finishing
-
-## CRITICAL: Auth Cookie Pattern
-- Cookie name is "session_token" — this is set by createSession() in src/lib/auth.ts
-- Middleware checks cookies via request.cookies.get("session_token") — MUST match
-- Signup returns status 201, Login returns status 200
-- If template auth already exists (src/lib/auth.ts), use createSession()/destroySession() — do NOT reimplement
-- For NEW API routes that need auth, read cookie from request headers:
-  ```
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const match = cookieHeader.match(/session_token=([^;]+)/);
-  const token = match?.[1] ?? null;
-  const userId = token ? getSessionUserId(token) : null;
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  ```
-- NEVER change the cookie name — middleware.ts, auth.ts, and all API routes must agree on "session_token"
-- For tests: use createSessionToken(userId) from @/lib/auth to create test sessions without cookies() API
+- npm install (NOT pnpm)
+- npx tsc --noEmit (typecheck)
+- npx vitest run (tests)
+- npx vite (dev server)
+- npx vite build (production build)
 
 ## Shared Types (CRITICAL)
-- src/lib/types.ts — 모든 도메인 타입과 API shape 정의
-- ALWAYS: import type { User, MealLog } from "@/lib/types"
+- src/lib/types.ts — 모든 도메인 타입 정의
+- ALWAYS: import type { ... } from "@/lib/types"
 - NEVER: 같은 타입을 다른 파일에서 재정의
-- 타입이 부족하면 types.ts에 추가 (다른 파일에 정의 금지)
 
-## Code Style
-- TypeScript strict, Next.js Pages Router, all files in src/
-- Tailwind CSS only (no inline styles), no .eslintrc files
-- All imports must resolve — verify with pnpm typecheck
 
-## Code Quality (CRITICAL — your code will be reviewed by AI)
-- Single Responsibility: Each file/component should do ONE thing. If a component exceeds ~150 lines, extract sub-components.
-- DRY: Before creating new helpers, check existing code in src/lib/ and src/components/. Import and reuse.
-- Error Handling: Every fetch/API call must have try/catch. Show loading states (skeleton/spinner) during async ops. Show user-friendly error messages with retry option.
-- TypeScript: Use explicit return types for exported functions. NEVER use `any` — use `unknown` and narrow with type guards.
-- Naming: Descriptive names (getUserById not getData). Constants in UPPER_SNAKE_CASE. Components in PascalCase.
-- No Magic Numbers: Extract into named constants (MAX_ITEMS = 10, DEBOUNCE_MS = 300).
-- Accessibility: aria-label on icon-only buttons. Semantic HTML (nav, main, section, article). Link form labels to inputs.
-- Performance: Avoid unnecessary re-renders (useCallback/useMemo where appropriate). Use dynamic imports for heavy components. Lazy-load images below fold.
-- Pattern Consistency: Match existing codebase patterns. Don't introduce new patterns when existing ones work.
+## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 
-## Common Build Error Prevention
-- Image component: use next/image with width+height or fill prop
-- Link component: import from next/link, no nested <a> tags
-- JSON imports: add "resolveJsonModule": true in tsconfig if needed
-- Missing types: check @types/ packages are in devDependencies
+Available topics: general(1)
 
-## Design System — shadcn/ui + "Linear meets Notion" aesthetic
-Read `.claude/skills/frontend-design/SKILL.md` for full aesthetic direction.
-Read `.impeccable.md` for project-specific design context (audience, brand, aesthetic).
-
-## Available Design Skills (Impeccable)
-These skills are in .claude/skills/ — use them for design guidance:
-- **frontend-design**: Core design principles and anti-patterns (READ FIRST)
-- **audit**: Technical quality audit (a11y, perf, theming, responsive). Run after completing UI work.
-- **critique**: UX design critique with heuristic scoring
-- **polish**: Final quality pass for alignment, spacing, consistency
-- **normalize**: Realign UI to design system standards
-- **harden**: Production hardening — text overflow, error/loading/empty states
-- **teach-impeccable**: SKIP — context already in .impeccable.md
-
-### Component Library (ALWAYS use — never raw HTML buttons/inputs/cards)
-```tsx
-import { Button } from "@/components/ui/button"    // variant: default|outline|ghost|secondary|destructive
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"       // variant: default|success|error|warning
-import { Skeleton } from "@/components/ui/skeleton"  // Loading placeholders: <Skeleton className="h-8 w-48" />
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"  // User avatars
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"  // Tabbed interfaces
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"  // Modal dialogs
-import { Select } from "@/components/ui/select"     // Native select with styling + label prop
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"  // Data tables
-import { cn } from "@/lib/utils"                    // Class merging: cn("base", conditional && "extra")
-```
-- Button asChild pattern for links: `<Button asChild><Link href="/x" className="no-underline">Go</Link></Button>`
-- Ghost nav links: `<Button variant="ghost" size="sm" asChild>`
-- Loading states: `<Skeleton className="h-8 w-48 rounded-lg" />` (not animate-pulse)
-- Dialogs: `<Dialog open={open} onOpenChange={setOpen}><DialogContent>...</DialogContent></Dialog>`
-- Tabs: `<Tabs defaultValue="tab1"><TabsList><TabsTrigger value="tab1">Tab</TabsTrigger></TabsList><TabsContent value="tab1">...</TabsContent></Tabs>`
-
-### Layout Rules
-- Page wrapper: NO max-width (full-bleed backgrounds)
-- Each section: `<section className="w-full py-20"><div className="max-w-6xl mx-auto px-4 md:px-6 lg:px-8">{content}</div></section>`
-- Hero: min-h-[70vh] flex items-center, gradient bg spans full width
-- ALL sections same max-w on wrapper; constrain inner content separately
-- Responsive: grid-cols-1 md:grid-cols-2 lg:grid-cols-3, flex-col md:flex-row
-
-### CRITICAL: CSS Specificity (Tailwind v4) — DO NOT VIOLATE
-- `@import "tailwindcss"` puts utilities in `@layer utilities`
-- Any CSS OUTSIDE `@layer` has HIGHER specificity → silently overrides ALL Tailwind utilities (pt-16, px-4, gap-6, mb-4, text-white, etc.)
-- This means `* { padding: 0 }` outside @layer will BREAK EVERY LAYOUT IN THE APP
-- ALWAYS wrap base/reset/element styles in `@layer base { }`
-- ALWAYS wrap custom utility classes in `@layer components { }`
-- ONLY `:root` (CSS variable declarations) and scrollbar pseudo-elements may be outside @layer
-- If you edit globals.css: VERIFY every non-:root rule is inside an @layer block
-
-### Colors (CSS vars ONLY — never hardcode hex)
-- bg: var(--bg), var(--bg-elevated), var(--bg-card), var(--bg-card-hover), var(--bg-input)
-- text: var(--text), var(--text-secondary), var(--text-muted), var(--text-inverse)
-- accent: var(--accent), var(--accent-hover), var(--accent-soft)
-- border: var(--border), var(--border-hover), var(--border-focus)
-- semantic: var(--success), var(--success-soft), var(--danger), var(--danger-soft), var(--warning), var(--warning-soft)
-- ring: var(--ring) for focus rings
-
-### Typography Scale (MANDATORY — maintain clear visual hierarchy)
-- Hero headings: text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight
-- Page titles: text-3xl font-bold
-- Section headings: text-2xl font-semibold
-- Card titles: text-lg font-semibold
-- Body text: text-base leading-relaxed
-- Meta/timestamps: text-sm text-[var(--text-secondary)]
-- Labels: text-sm font-medium
-- Captions/hints: text-xs text-[var(--text-muted)]
-- RULE: No two adjacent heading levels should look the same — always vary size AND weight
-
-### Spacing Scale (MANDATORY — generous whitespace like Linear/Notion)
-- Page sections: py-20 md:py-28 (vertical), px-4 sm:px-6 lg:px-8 (horizontal)
-- Section content: max-w-6xl mx-auto (or max-w-5xl for narrower content)
-- Card padding: p-6 md:p-8
-- Form field gaps: gap-4 (between fields), gap-6 (between form sections)
-- List item spacing: gap-3
-- Icon + text: gap-2
-- Grid gaps: gap-6 md:gap-8
-- Hero CTA margin: mb-16 md:mb-20
-- RULE: When in doubt, add MORE whitespace, not less
-
-### UI State Patterns (EVERY page/component must handle ALL applicable states)
-- Loading: Use `skeleton` class (shimmer animation defined in globals.css) or `animate-pulse` with bg-[var(--bg-card)]
-  ```tsx
-  <div className="skeleton h-8 w-48 rounded-lg" />   {/* text skeleton */}
-  <div className="skeleton h-40 w-full rounded-xl" /> {/* card skeleton */}
-  ```
-- Empty state: Centered icon (lucide-react, 48px, text-muted) + heading + description + CTA button
-  ```tsx
-  <div className="flex flex-col items-center py-20 text-center">
-    <FileText className="h-12 w-12 text-[var(--text-muted)] mb-4" />
-    <h3 className="text-lg font-semibold mb-2">No items yet</h3>
-    <p className="text-sm text-[var(--text-secondary)] mb-6">Get started by creating your first item.</p>
-    <Button>Create Item</Button>
-  </div>
-  ```
-- Error state: bg-[var(--danger-soft)] banner with AlertCircle icon + error message + retry button
-- Success state: bg-[var(--success-soft)] banner with CheckCircle icon + message (auto-dismiss via animate-in)
-- Disabled state: opacity-50 cursor-not-allowed pointer-events-none
-
-### Page Layout Templates (follow these patterns for consistency)
-- Landing: Hero(min-h-[70vh] gradient bg) → HowItWorks(3-step numbered) → Features(3-col icon grid) → CTA(full-width accent bg) → Footer
-- Auth (login/signup): centered max-w-md Card on min-h-screen background
-- Dashboard: Stats row (3-col grid of metric Cards) → Data section (list/table with filters)
-- Settings: Sidebar nav + content area, or stacked sections with Cards
-- Detail/Edit: Breadcrumb → Title → Content Card with form or display
-
-### Hover & Interaction States (REQUIRED on all interactive elements)
-- Buttons: hover:bg-[var(--accent-hover)] transition-all duration-150 active:scale-[0.98]
-- Cards: hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-lg transition-all duration-200
-- Links: hover:text-[var(--accent)] transition-colors
-- Inputs: focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)]
-- List items: hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer
-
-### Anti-patterns (FORBIDDEN — these cause quality score deductions)
-- Cramped layouts — generous whitespace, never tight micro-spacing
-- Flat hierarchy — vary size, weight, and color between heading levels
-- Unstyled elements — every button/link needs rounded corners + hover state + transition
-- Narrow trapped content — full-bleed sections with constrained inner content
-- Raw HTML for buttons/inputs/cards — ALWAYS use shadcn components from @/components/ui/
-- Missing loading states — NEVER show blank screen while data loads
-- Missing empty states — ALWAYS show helpful message + CTA when no data
-- Hardcoded colors (#3b82f6) — ALWAYS use CSS variables
-- Same-size adjacent text — ALWAYS create visual hierarchy with different sizes/weights
-
-## Navigation
-- Every page reachable from header nav. Login<->Signup cross-linked.
-- Layout at src/pages/_app.tsx — UPDATE it, don't recreate.
-- Nav component at src/components/ui/nav.tsx — add links for new pages here.
-
-## TDD: Tests already exist — make them PASS
-A test file `src/__tests__/packet-{PACKET_ID}.test.ts` has been pre-written based on acceptance criteria.
-Your job is to write code that makes ALL tests pass.
-
-1. Read the test file FIRST to understand expected behavior
-2. Implement the code that satisfies the tests
-3. Run `npx vitest run src/__tests__/packet-{PACKET_ID}.test.ts` to verify
-4. If a test fails, read the error and fix your CODE (not the test)
-5. Only modify tests if they have import errors that don't match your file structure
-
-CRITICAL: The tests define the requirements. Your code must match them, not the other way around.
-
-## Verification Gate (증거 없이 완료 선언 금지)
-You MUST make all pre-written tests pass. Repeat fix→check up to 3 times.
-
-1. `npx vitest run src/__tests__/packet-{PACKET_ID}.test.ts` — THIS IS THE MOST IMPORTANT CHECK
-   - Tests define the requirements — your code must satisfy them
-   - If tests fail, fix your CODE (not the tests)
-   - Only fix tests if they have wrong import paths
-2. `pnpm typecheck` — fix any TypeScript errors
-3. `npx next build` — verify build succeeds
-
-### Verification Rules
-- 모든 검증 커맨드를 직접 실행하고 출력(exit code, 결과)을 확인하라
-- "아마 통과할 것이다"는 증거가 아니다 — 반드시 fresh 실행
-- 테스트 0건 통과는 "테스트 성공"이 아니다 — 실제 테스트가 실행되었는지 확인
-- 이전 실행 결과에 의존하지 마라 — 코드 변경 후 반드시 재실행
-- "should work", "probably passes" 같은 불확실한 언어 사용 금지
-
-CRITICAL: Your code is NOT done until the pre-written tests pass.
-The tests were carefully written based on acceptance criteria — they are the source of truth.
-
-## Final Checklist (run before finishing)
-1. pnpm typecheck — zero errors
-2. pnpm test — all tests pass
-3. npx next build — builds successfully
-4. No unresolved imports
-
+Key lessons (verify against actual code before applying):
+- [general] 라우팅·전역 Provider·앱 진입점 배선은 단일 패킷에서만 정의하고, 후속 패킷은 재선언 대신 기존 배선을 참조·재사용하게 하라. (60%)

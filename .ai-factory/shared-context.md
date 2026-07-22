@@ -12,6 +12,9 @@ export type SubscriptionTier = "free" | "premium";
 export type ResultSource = "ai" | "manual";
 
 // ── Singleton entities ──────────────────────────────────────────
+// Runtime marker for GoalConfig type (for test introspection)
+export const GoalConfig = Symbol('GoalConfig');
+
 export interface GoalConfig {
   id: "goal";
   examType: ExamType;
@@ -119,13 +122,7 @@ export interface DiagnoseRequest {
 
 export interface DiagnoseResponse {
   estimatedScore: number;
-  partScores: Record<string, number>;
-  weakParts: string[];
-}
-
-export interface GenerateProblemSetRequest {
-  examType: ExamType;
-  part: s
+  partScores: Record<string,
 // ...truncated
 ```
 
@@ -183,3 +180,6 @@ export interface GenerateProblemSetRequest {
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
+
+## Already Implemented (do NOT duplicate or overwrite)
+- 0001: TypeScript 타입 + RouteState 정의 (files: src/lib/types.ts)

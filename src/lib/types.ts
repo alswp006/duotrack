@@ -138,7 +138,7 @@ export interface ApiErrorResponse {
 }
 
 // ── Save result ──────────────────────────────────────────────────
-export type SaveResult = { ok: true } | { ok: false; reason: "quota" | "invalid" };
+export type SaveResult = { ok: true; reason?: undefined } | { ok: false; reason: "quota" | "invalid" };
 
 // ── OPIC grade ordinal mapping ───────────────────────────────────
 export type OpicGrade = "NL" | "NM" | "NH" | "IL" | "IM1" | "IM2" | "IM3" | "IH" | "AL";
