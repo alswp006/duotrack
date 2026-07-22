@@ -330,3 +330,10 @@ The tests were carefully written based on acceptance criteria — they are the s
 3. npx next build — builds successfully
 4. No unresolved imports
 
+## Preserved Template Rules
+
+
+## Navigation
+- Every page reachable from header nav. Login<->Signup cross-linked.
+- Layout at src/pages/_app.tsx — UPDATE it, don't recreate.
+- Nav component at src/components/ui/nav.tsx — add links for new pages here.
