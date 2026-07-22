@@ -1,10 +1,10 @@
 import type { DiagnoseRequest, DiagnoseResponse } from "@/lib/types";
 
-export type ApiErrorCode = "400" | "401" | "404" | "429" | "500";
+export type DiagnoseErrorCode = "400" | "401" | "404" | "429" | "500";
 
 export type PostDiagnoseResult =
   | { ok: true; data: DiagnoseResponse; code?: undefined }
-  | { ok: false; code: ApiErrorCode; data?: undefined };
+  | { ok: false; code: DiagnoseErrorCode; data?: undefined };
 
 const KNOWN_ERROR_STATUSES: ReadonlySet<number> = new Set([400, 401, 404, 429, 500]);
 
@@ -36,8 +36,8 @@ export async function postDiagnose(req: DiagnoseRequest): Promise<PostDiagnoseRe
       return { ok: true, data };
     }
 
-    const code: ApiErrorCode = KNOWN_ERROR_STATUSES.has(response.status)
-      ? (String(response.status) as ApiErrorCode)
+    const code: DiagnoseErrorCode = KNOWN_ERROR_STATUSES.has(response.status)
+      ? (String(response.status) as DiagnoseErrorCode)
       : "500";
     return { ok: false, code };
   } catch {
