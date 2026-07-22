@@ -17,6 +17,11 @@ import type { DiagnoseResponse } from "@/lib/types";
 // Mock postDiagnose will be loaded dynamically in tests
 // Once src/lib/api.ts is created with postDiagnose export, these tests will run
 
+async function loadPostDiagnose() {
+  const { postDiagnose } = await import("@/lib/api");
+  return postDiagnose;
+}
+
 describe("AC-1[P0]: 200 응답을 DiagnoseResponse로 파싱·반환", () => {
   let consoleErrorSpy: any;
 
@@ -31,7 +36,7 @@ describe("AC-1[P0]: 200 응답을 DiagnoseResponse로 파싱·반환", () => {
   it("should return {ok:true, data} on 200 response", async () => {
     // Import the actual function (will fail until src/lib/api.ts is created)
     const { postDiagnose } = await import("@/lib/api").catch(() => ({
-      postDiagnose: async (req: any) => ({ ok: false, code: "500" as const }),
+      postDiagnose: async (req: any) => ({ ok: false, code: "500" as const, data: undefined }),
     }));
 
     // Arrange: mock fetch with success response
